@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 from orderForTree import Order
 
 class Participant:
-    def __init__(self, participant_id: str, balance: float = 100000.0,
+    def __init__(self, participant_id: str="maeriyn", balance: float = 100000.0,
                  order_book_manager=None, order_queue_manager=None):
 
         self.participant_id = participant_id
