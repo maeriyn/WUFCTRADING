@@ -54,8 +54,7 @@ class CompetitorBoilerplate(Participant):
                 self.remove_order(order_id, symbol)
             for order_id in self.active_orders[symbol]['sell']:
                 self.remove_order(order_id, symbol)
-            self.active_orders = {symbol: {'buy': [], 'sell': []} for symbol in self.symbols}
-
+            self.active_orders[symbol] = {'buy': [], 'sell': []}
 
             # Get the latest order book snapshot
             order_book = self.get_order_book_snapshot(symbol)
@@ -73,8 +72,12 @@ class CompetitorBoilerplate(Participant):
             mid_price = (best_bid + best_ask) / 2
             current_spread = best_ask - best_bid
 
-            # Dynamic spread adjustment (80% of current spread, minimum 0.01)
-            desired_spread = max(current_spread * 0.8, 0.01)
+            # Get the volatility of the security from the PriceGenerator
+            # Assuming the PriceGenerator is accessible via self.price_generator
+            volatility = self.price_generator.securities[symbol]['volatility']
+
+            # Dynamic spread adjustment: proportional to volatility
+            desired_spread = max(current_spread * 0.8, volatility * 0.1)  # At least 10% of volatility
             bid_price = round(mid_price - desired_spread / 2, 2)
             ask_price = round(mid_price + desired_spread / 2, 2)
 
@@ -82,11 +85,16 @@ class CompetitorBoilerplate(Participant):
             bid_price = min(bid_price, best_ask - 0.01)  # Bid must be below best ask
             ask_price = max(ask_price, best_bid + 0.01)  # Ask must be above best bid
 
-            # Position sizing based on available balance and current holdings
+            # Position sizing based on available balance and volatility
             cash_per_symbol = self.get_balance() / len(self.symbols)
             max_buy_size = int((cash_per_symbol * 0.1) // bid_price) if bid_price > 0 else 0
             current_holding = self.get_portfolio().get(symbol, 0)
             sell_size = max(int(current_holding * 0.1), 0)
+
+            # Adjust position sizes based on volatility
+            # Reduce size for highly volatile stocks to manage risk
+            max_buy_size = int(max_buy_size / (1 + volatility * 10))  # Scale down for high volatility
+            sell_size = int(sell_size / (1 + volatility * 10))  # Scale down for high volatility
 
             # Place buy order if conditions are met
             if max_buy_size > 0 and bid_price > 0:
