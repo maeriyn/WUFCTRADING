@@ -71,20 +71,20 @@ class CompetitorBoilerplate(Participant):
             mid_price = (best_bid + best_ask) / 2
             spread = best_ask - best_bid
 
-            # Fixed order size for simplicity
-            order_size = 10
+            # Fixed order size for consistency
+            order_size = 20  # Restore fixed order size to ensure trades
 
-            # Adjust bid/ask pricing to ensure valid placement
+            # Adjust bid/ask pricing for optimal execution
             bid_price = round(best_bid * 0.99, 2)
             ask_price = round(best_ask * 1.01, 2)
 
             print(f"Calculated bid: {bid_price}, ask: {ask_price} for {symbol}")
             print(f"Order size: {order_size}")
 
-            # Place multiple buy and sell orders to enhance activity
-            for i in range(3):  # Increase trade frequency
-                adjusted_bid = round(bid_price * (1 - 0.002 * i), 2)
-                adjusted_ask = round(ask_price * (1 + 0.002 * i), 2)
+            # Place multiple buy and sell orders to smooth execution and maximize Sharpe ratio
+            for i in range(4):  # Slightly increased trade frequency
+                adjusted_bid = round(bid_price * (1 - 0.0007 * i), 2)
+                adjusted_ask = round(ask_price * (1 + 0.0007 * i), 2)
 
                 if adjusted_bid < best_ask:
                     buy_order_id = self.create_limit_order(
@@ -109,3 +109,4 @@ class CompetitorBoilerplate(Participant):
                         print(f"Placed sell order {sell_order_id} at {adjusted_ask} for {symbol}")
                     else:
                         print(f"Sell order failed for {symbol}")
+
