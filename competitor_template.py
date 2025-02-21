@@ -49,16 +49,12 @@ class CompetitorBoilerplate(Participant):
 
     def strategy(self):
         for symbol in self.symbols:
-            # Cancel existing orders for this symbol
-            for order_id in self.active_orders[symbol]['buy']:
-                self.remove_order(order_id, symbol)
-            for order_id in self.active_orders[symbol]['sell']:
-                self.remove_order(order_id, symbol)
-            self.active_orders[symbol] = {'buy': [], 'sell': []}
+            print(f"Processing {symbol}")
 
             # Get the latest order book snapshot
             order_book = self.get_order_book_snapshot(symbol)
             if not order_book:
+                print(f"No order book data for {symbol}, skipping.")
                 continue  # Skip if no order book data is available
 
             # Extract best bid and ask prices
@@ -66,54 +62,50 @@ class CompetitorBoilerplate(Participant):
             best_ask = order_book['asks'][0][0] if order_book['asks'] else None
 
             if best_bid is None or best_ask is None:
+                print(f"No valid bid/ask for {symbol}, skipping.")
                 continue  # Skip if there's no market data
 
-            # Calculate mid-price and current spread
+            print(f"Best bid: {best_bid}, Best ask: {best_ask} for {symbol}")
+
+            # Calculate mid-price and spread
             mid_price = (best_bid + best_ask) / 2
-            current_spread = best_ask - best_bid
+            spread = best_ask - best_bid
 
-            # Get the volatility of the security from the PriceGenerator
-            # Assuming the PriceGenerator is accessible via self.price_generator
-            volatility = self.price_generator.securities[symbol]['volatility']
+            # Fixed order size for simplicity
+            order_size = 10
 
-            # Dynamic spread adjustment: proportional to volatility
-            desired_spread = max(current_spread * 0.8, volatility * 0.1)  # At least 10% of volatility
-            bid_price = round(mid_price - desired_spread / 2, 2)
-            ask_price = round(mid_price + desired_spread / 2, 2)
+            # Adjust bid/ask pricing to ensure valid placement
+            bid_price = round(best_bid * 0.99, 2)
+            ask_price = round(best_ask * 1.01, 2)
 
-            # Ensure bid and ask prices are within valid ranges
-            bid_price = min(bid_price, best_ask - 0.01)  # Bid must be below best ask
-            ask_price = max(ask_price, best_bid + 0.01)  # Ask must be above best bid
+            print(f"Calculated bid: {bid_price}, ask: {ask_price} for {symbol}")
+            print(f"Order size: {order_size}")
 
-            # Position sizing based on available balance and volatility
-            cash_per_symbol = self.get_balance() / len(self.symbols)
-            max_buy_size = int((cash_per_symbol * 0.1) // bid_price) if bid_price > 0 else 0
-            current_holding = self.get_portfolio().get(symbol, 0)
-            sell_size = max(int(current_holding * 0.1), 0)
+            # Place multiple buy and sell orders to enhance activity
+            for i in range(3):  # Increase trade frequency
+                adjusted_bid = round(bid_price * (1 - 0.002 * i), 2)
+                adjusted_ask = round(ask_price * (1 + 0.002 * i), 2)
 
-            # Adjust position sizes based on volatility
-            # Reduce size for highly volatile stocks to manage risk
-            max_buy_size = int(max_buy_size / (1 + volatility * 10))  # Scale down for high volatility
-            sell_size = int(sell_size / (1 + volatility * 10))  # Scale down for high volatility
+                if adjusted_bid < best_ask:
+                    buy_order_id = self.create_limit_order(
+                        price=adjusted_bid,
+                        size=order_size,
+                        side='buy',
+                        symbol=symbol
+                    )
+                    if buy_order_id:
+                        print(f"Placed buy order {buy_order_id} at {adjusted_bid} for {symbol}")
+                    else:
+                        print(f"Buy order failed for {symbol}")
 
-            # Place buy order if conditions are met
-            if max_buy_size > 0 and bid_price > 0:
-                buy_order_id = self.create_limit_order(
-                    price=bid_price,
-                    size=max_buy_size,
-                    side='buy',
-                    symbol=symbol
-                )
-                if buy_order_id:
-                    self.active_orders[symbol]['buy'].append(buy_order_id)
-
-            # Place sell order if conditions are met
-            if sell_size > 0 and ask_price > 0:
-                sell_order_id = self.create_limit_order(
-                    price=ask_price,
-                    size=sell_size,
-                    side='sell',
-                    symbol=symbol
-                )
-                if sell_order_id:
-                    self.active_orders[symbol]['sell'].append(sell_order_id)
+                if adjusted_ask > best_bid:
+                    sell_order_id = self.create_limit_order(
+                        price=adjusted_ask,
+                        size=order_size,
+                        side='sell',
+                        symbol=symbol
+                    )
+                    if sell_order_id:
+                        print(f"Placed sell order {sell_order_id} at {adjusted_ask} for {symbol}")
+                    else:
+                        print(f"Sell order failed for {symbol}")
